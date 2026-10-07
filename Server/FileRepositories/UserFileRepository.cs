@@ -37,12 +37,12 @@ public class UserFileRepository: IUserRepository
 
      User? existingUser = users.FirstOrDefault(u => u.id == user.id);
 
-     if (existingUser != null)
+     if (existingUser is null)
      {
          throw new InvalidOperationException($"User with Id '{user.id}' not found");
      }
 
-     users.Remove(user);
+     users.Remove(existingUser);
      users.Add(user);
      usersAsJson = JsonSerializer.Serialize(users);
      await File.WriteAllTextAsync(filepath, usersAsJson);
