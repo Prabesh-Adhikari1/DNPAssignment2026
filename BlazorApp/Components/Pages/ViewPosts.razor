@@ -1,0 +1,57 @@
+﻿@page "/ViewPosts"
+@using ApiContracts
+@using BlazorApp.Services
+@inject IPostService postService
+@inject IUserService userService
+
+<h3>ViewPosts</h3>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@if (posts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!posts.Any())
+{
+    <p>No posts to view</p>
+}
+else
+{
+    <ul>
+        @foreach (PostDto post in posts)
+        {
+            <li><a href="/ViewPost/@post.Id">@post.Title</a>, by @GetAuthorName(post.UserId)</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<PostDto>? posts;
+    private List<UserDto> users = [];
+    private string message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            posts = await postService.GetPostsAsync();
+            users = await userService.GetUsersAsync();
+        }
+        catch (Exception e)
+        {
+            message = e.Message;
+            posts = [];
+        }
+    }
+
+    private string GetAuthorName(int userId)
+    {
+        UserDto? user = users.FirstOrDefault(u => u.Id == userId);
+        return user?.UserName ?? "Unknown";
+    }
+    
+}

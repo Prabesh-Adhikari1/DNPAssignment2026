@@ -16,6 +16,16 @@ public class PostsController: ControllerBase
     this.PostRepository = PostRepository;
     this.userRepository = userRepository;
   }
+  private static PostDto ToDto(Post post)
+  {
+    return new PostDto
+    {
+      Id = post.id,
+      Title = post.title,
+      Content = post.content,
+      UserId = post.userId
+    };
+  }
 
   [HttpPost]
   public async Task<ActionResult<Post>> Post([FromBody] CreatePostDto
@@ -28,7 +38,8 @@ public class PostsController: ControllerBase
       userId = request.UserId
     };
     Post createdPost = await PostRepository.AddAsync(post);
-    return Created($"/Posts/{createdPost.id}", createdPost);
+    PostDto dto= ToDto(createdPost);
+    return Created($"/Posts/{dto.Id}", dto);
   }
   [HttpPut("{id}")]
   public async Task<ActionResult> UpdatePost(
@@ -51,13 +62,17 @@ public class PostsController: ControllerBase
   [HttpGet("{id}")]
   public async Task<ActionResult<Post>> GetSingle(int id)
   {
-    Post post = await PostRepository.GetSingleAsync(id);
+    Post? post = await PostRepository.GetSingleAsync(id);
 
-    return Ok(post);
+    if (post is null)
+    {
+      return NotFound();
+    }
+    return Ok(ToDto(post));
   }
   
   [HttpGet]
-  public ActionResult<IQueryable<Post>> GetMany(
+  public ActionResult<IQueryable<PostDto>> GetMany(
     [FromQuery] string? title,
     [FromQuery] int? userId,
     [FromQuery] string? userName)
@@ -87,7 +102,7 @@ public class PostsController: ControllerBase
         matchingUserIds.Contains(post.userId));
     }
 
-    return Ok(posts);
+    return Ok(posts.Select(ToDto).ToList());
   }
   [HttpDelete("{id}")]
   public async Task<ActionResult> DeletePost(int id)

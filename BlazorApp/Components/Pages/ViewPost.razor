@@ -1,0 +1,111 @@
+﻿@page "/ViewPost/{Id:int}"
+@using ApiContracts
+@using BlazorApp.Services
+@inject IPostService postService
+@inject IUserService userService
+@inject ICommentService commentService
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+else if (post == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h3>@post.Title</h3>
+    <p><em>by @GetAuthorName(post.UserId)</em></p>
+    <p>@post.Content</p>
+
+    <h4>Comments</h4>
+    @if (!comments.Any())
+    {
+        <p>No comments yet</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (CommentDto comment in comments)
+            {
+                <li><strong>@GetAuthorName(comment.UserId):</strong> @comment.Body</li>
+            }
+        </ul>
+    }
+
+    @* NEW PIECE 1: the form, still inside the last else *@
+    <h4>Add comment</h4>
+    <div>
+        <textarea @bind="newComment"></textarea>
+    </div>
+    <button @onclick="AddCommentAsync">Add comment</button>
+
+    @if (!string.IsNullOrEmpty(commentMessage))
+    {
+        <p>@commentMessage</p>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private PostDto? post;
+    private List<CommentDto> comments = [];
+    private List<UserDto> users = [];
+    private string message = string.Empty;
+
+    // NEW PIECE 2: two fields
+    private string newComment = string.Empty;
+    private string commentMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            post = await postService.GetPostAsync(Id);
+            comments = await commentService.GetCommentsForPostAsync(Id);
+            users = await userService.GetUsersAsync();
+        }
+        catch (Exception e)
+        {
+            message = e.Message;
+        }
+    }
+
+    // NEW PIECE 2: the method
+    private async Task AddCommentAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newComment))
+        {
+            commentMessage = "Write a comment first";
+            return;
+        }
+
+        try
+        {
+            CreateCommentDto dto = new()
+            {
+                UserId = 1,
+                PostId = Id,
+                Body = newComment
+            };
+            await commentService.AddCommentAsync(dto);
+
+            newComment = string.Empty;
+            commentMessage = string.Empty;
+            comments = await commentService.GetCommentsForPostAsync(Id);
+        }
+        catch (Exception e)
+        {
+            commentMessage = e.Message;
+        }
+    }
+
+    private string GetAuthorName(int userId)
+    {
+        UserDto? user = users.FirstOrDefault(u => u.Id == userId);
+        return user?.UserName ?? "Unknown";
+    }
+}

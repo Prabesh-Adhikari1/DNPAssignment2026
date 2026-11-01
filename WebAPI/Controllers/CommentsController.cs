@@ -18,9 +18,18 @@ public class CommentsController:ControllerBase
         this.commentRepository = commentRepository;
         this.userRepository = userRepository;
     }
-   
+    private static CommentDto ToDto(Comment comment)
+    {
+        return new CommentDto
+        {
+            Id = comment.id,
+            UserId = comment.userId,
+            PostId = comment.postId,
+            Body = comment.body
+        };
+    }
     [HttpGet]
-    public ActionResult<IQueryable<Comment>> GetMany(
+    public ActionResult<IQueryable<CommentDto>> GetMany(
         [FromQuery] int? userId,
         [FromQuery] string? userName,
         [FromQuery] int? postId)
@@ -50,21 +59,24 @@ public class CommentsController:ControllerBase
                 comment.postId == postId.Value);
         }
 
-        return Ok(comments);
+        return Ok(comments.Select(ToDto).ToList());
     }
 
  
     
     [HttpGet("{id}")]
-    public async Task<ActionResult<Comment>> GetSingle(int id)
+    public async Task<ActionResult<CommentDto>> GetSingle(int id)
     {
-        Comment comment = await commentRepository.GetSingleAsync(id);
-
-        return Ok(comment);
+        Comment? comment = await commentRepository.GetSingleAsync(id);
+        if (comment is null)
+        {
+            return NotFound();
+        }
+        return Ok(ToDto(comment));
     }
 
     [HttpPost]
-    public async Task<ActionResult<Comment>> AddComment(
+    public async Task<ActionResult<CommentDto>> AddComment(
         [FromBody] CreateCommentDto request)
     {
         Comment comment = new Comment
@@ -76,10 +88,9 @@ public class CommentsController:ControllerBase
 
         Comment createdComment =
             await commentRepository.AddAsync(comment);
+        CommentDto dto = ToDto(createdComment);
 
-        return Created(
-            $"/Comments/{createdComment.id}",
-            createdComment);
+        return Created($"/Comments/{dto.Id}", dto);
     }
 
     [HttpPut("{id}")]
