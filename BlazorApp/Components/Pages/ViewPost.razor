@@ -1,15 +1,21 @@
-﻿@page "/ViewPost/{Id:int}"
+﻿
+@page "/ViewPost/{Id:int}"
 @using ApiContracts
 @using BlazorApp.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+
 @inject IPostService postService
 @inject IUserService userService
 @inject ICommentService commentService
+@inject NavigationManager navigation
 
 @if (!string.IsNullOrEmpty(message))
 {
     <p>@message</p>
 }
-else if (post == null)
+
+@if (post == null)
 {
     <p><em>Loading...</em></p>
 }
@@ -19,7 +25,48 @@ else
     <p><em>by @GetAuthorName(post.UserId)</em></p>
     <p>@post.Content</p>
 
+    @if (currentUserId == post.UserId)
+    {
+        <button @onclick="StartEditing">Edit Post</button>
+        <button @onclick="() => confirmDelete = true">
+            Delete Post
+        </button>
+
+        @if (isEditing)
+        {
+            <h4>Edit Post</h4>
+
+            <label>Title:</label>
+            <input type="text" @bind="editTitle" />
+
+            <label>Content:</label>
+            <textarea @bind="editContent"></textarea>
+
+            <button @onclick="SaveChangesAsync">
+                Save Changes
+            </button>
+
+            <button @onclick="() => isEditing = false">
+                Cancel
+            </button>
+        }
+
+        @if (confirmDelete)
+        {
+            <p>Are you sure you want to delete this post?</p>
+
+            <button @onclick="DeletePostAsync">
+                Yes, Delete
+            </button>
+
+            <button @onclick="() => confirmDelete = false">
+                Cancel
+            </button>
+        }
+    }
+
     <h4>Comments</h4>
+
     @if (!comments.Any())
     {
         <p>No comments yet</p>
@@ -29,17 +76,30 @@ else
         <ul>
             @foreach (CommentDto comment in comments)
             {
-                <li><strong>@GetAuthorName(comment.UserId):</strong> @comment.Body</li>
+                <li>
+                    <strong>@GetAuthorName(comment.UserId):</strong>
+                    @comment.Body
+                </li>
             }
         </ul>
     }
 
-    @* NEW PIECE 1: the form, still inside the last else *@
-    <h4>Add comment</h4>
-    <div>
+    @if (currentUserId != null)
+    {
+        <h4>Add comment</h4>
+
         <textarea @bind="newComment"></textarea>
-    </div>
-    <button @onclick="AddCommentAsync">Add comment</button>
+
+        <button @onclick="AddCommentAsync">
+            Add Comment
+        </button>
+    }
+    else
+    {
+        <p>
+            <a href="/login">Log in</a> to add a comment.
+        </p>
+    }
 
     @if (!string.IsNullOrEmpty(commentMessage))
     {
@@ -51,19 +111,46 @@ else
     [Parameter]
     public int Id { get; set; }
 
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthState { get; set; } = default!;
+
     private PostDto? post;
     private List<CommentDto> comments = [];
     private List<UserDto> users = [];
-    private string message = string.Empty;
 
-    // NEW PIECE 2: two fields
+    private int? currentUserId;
+
+    private string message = string.Empty;
     private string newComment = string.Empty;
     private string commentMessage = string.Empty;
 
-    protected override async Task OnInitializedAsync()
+    private bool isEditing = false;
+    private bool confirmDelete = false;
+
+    private string editTitle = string.Empty;
+    private string editContent = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
     {
         try
         {
+            message = string.Empty;
+            currentUserId = null;
+
+            AuthenticationState state = await AuthState;
+            ClaimsPrincipal currentUser = state.User;
+
+            if (currentUser.Identity?.IsAuthenticated == true)
+            {
+                string? idString = currentUser
+                    .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (int.TryParse(idString, out int userId))
+                {
+                    currentUserId = userId;
+                }
+            }
+
             post = await postService.GetPostAsync(Id);
             comments = await commentService.GetCommentsForPostAsync(Id);
             users = await userService.GetUsersAsync();
@@ -74,12 +161,78 @@ else
         }
     }
 
-    // NEW PIECE 2: the method
+    private void StartEditing()
+    {
+        if (post == null || currentUserId != post.UserId)
+            return;
+
+        editTitle = post.Title;
+        editContent = post.Content;
+
+        isEditing = true;
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        if (post == null || currentUserId != post.UserId)
+            return;
+
+        if (string.IsNullOrWhiteSpace(editTitle))
+        {
+            message = "Title cannot be empty.";
+            return;
+        }
+
+        try
+        {
+            UpdatePostDto dto = new()
+            {
+                Title = editTitle,
+                Content = editContent,
+                UserId = post.UserId
+            };
+
+            await postService.UpdatePostAsync(Id, dto);
+
+            post = await postService.GetPostAsync(Id);
+
+            isEditing = false;
+            message = "Post updated successfully.";
+        }
+        catch (Exception e)
+        {
+            message = e.Message;
+        }
+    }
+
+    private async Task DeletePostAsync()
+    {
+        if (post == null || currentUserId != post.UserId)
+            return;
+
+        try
+        {
+            await postService.DeletePostAsync(Id);
+            navigation.NavigateTo("/ViewPosts");
+        }
+        catch (Exception e)
+        {
+            message = e.Message;
+            confirmDelete = false;
+        }
+    }
+
     private async Task AddCommentAsync()
     {
+        if (currentUserId is not int userId)
+        {
+            commentMessage = "You must log in first.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(newComment))
         {
-            commentMessage = "Write a comment first";
+            commentMessage = "Write a comment first.";
             return;
         }
 
@@ -87,14 +240,16 @@ else
         {
             CreateCommentDto dto = new()
             {
-                UserId = 1,
+                UserId = userId,
                 PostId = Id,
                 Body = newComment
             };
+
             await commentService.AddCommentAsync(dto);
 
             newComment = string.Empty;
             commentMessage = string.Empty;
+
             comments = await commentService.GetCommentsForPostAsync(Id);
         }
         catch (Exception e)

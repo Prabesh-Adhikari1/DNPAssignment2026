@@ -67,4 +67,29 @@ public class HttpPostService : IPostService
             PropertyNameCaseInsensitive = true
         })!;
     }
+    
+    public async Task UpdatePostAsync(int id, UpdatePostDto request)
+    {
+        using HttpResponseMessage response =
+            await client.PutAsJsonAsync($"posts/{id}", request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+    }
+
+    public async Task DeletePostAsync(int id)
+    {
+        using HttpResponseMessage response =
+            await client.DeleteAsync($"posts/{id}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+    }
+
 }

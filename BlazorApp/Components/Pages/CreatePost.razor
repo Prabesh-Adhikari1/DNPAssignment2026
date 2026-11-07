@@ -1,13 +1,18 @@
 ﻿@page "/CreatePost"
+@attribute [Authorize]
 @using ApiContracts
 @using BlazorApp.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IPostService postService
 
 <h3>CreatePost</h3>
+
 <div>
     <label>Title:</label>
     <input type="text" @bind="title" />
 </div>
+
 <div>
     <label>Content:</label>
     <textarea @bind="content"></textarea>
@@ -21,6 +26,9 @@
 }
 
 @code {
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthState { get; set; } = default!;
+
     private string title = string.Empty;
     private string content = string.Empty;
     private string message = string.Empty;
@@ -29,13 +37,33 @@
     {
         try
         {
+            AuthenticationState state = await AuthState;
+            ClaimsPrincipal currentUser = state.User;
+
+            if (currentUser.Identity?.IsAuthenticated != true)
+            {
+                message = "You must log in first.";
+                return;
+            }
+
+            string? userIdString = currentUser
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdString, out int userId))
+            {
+                message = "Could not find the logged-in user's ID.";
+                return;
+            }
+
             CreatePostDto dto = new()
             {
                 Title = title,
                 Content = content,
-                UserId = 1
+                UserId = userId
             };
+
             PostDto created = await postService.AddPostAsync(dto);
+
             message = $"Post created with id {created.Id}";
             title = string.Empty;
             content = string.Empty;
@@ -45,5 +73,4 @@
             message = e.Message;
         }
     }
-    
 }

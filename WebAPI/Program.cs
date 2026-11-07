@@ -9,6 +9,7 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<IUserRepository, UserFileRepository>();
 builder.Services.AddSingleton<ICommentRepository, CommentFileRepository>();
 builder.Services.AddSingleton<IPostRepository, PostFileRepository>();
+builder.Services.AddSingleton<IUserRepository, UserFileRepository>();
 
 var app = builder.Build();
 

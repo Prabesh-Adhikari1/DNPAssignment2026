@@ -1,6 +1,12 @@
-bin/
-obj/
-/packages/
-riderModule.iml
-/_ReSharper.Caches/
-.idea/
+# Additional local files
+.vs/
+*.user
+*.suo
+
+# Secrets
+.env
+.env.*
+*.pfx
+
+# User data containing passwords
+users.json
